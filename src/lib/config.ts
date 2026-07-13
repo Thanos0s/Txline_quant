@@ -8,6 +8,7 @@ const envSchema = z.object({
   TXLINE_TXL_MINT: z.string().min(1).optional(),
   TXLINE_IDL_PATH: z.string().min(1).optional(),
   WALLET_KEYPAIR_PATH: z.string().min(1).optional(),
+  SOLANA_WALLET_SECRET_KEY: z.string().min(1).optional(),
   SERVICE_LEVEL_ID: z.coerce.number().int().positive().default(1),
   DURATION_WEEKS: z.coerce.number().int().positive().default(4),
   SELECTED_LEAGUES: z.string().optional(),

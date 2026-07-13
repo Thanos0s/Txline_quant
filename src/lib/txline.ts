@@ -107,12 +107,21 @@ function buildContext(): TxlineContext {
   const txlTokenMint = new PublicKey(env.TXLINE_TXL_MINT ?? defaults.txlTokenMint);
   const idlPath = env.TXLINE_IDL_PATH;
 
-  const keypairPath = env.WALLET_KEYPAIR_PATH;
-  if (!keypairPath) {
-    throw new Error('WALLET_KEYPAIR_PATH is required to sign subscribe and activate operations');
+  let keypair: Keypair;
+  if (env.SOLANA_WALLET_SECRET_KEY) {
+    try {
+      const secret = JSON.parse(env.SOLANA_WALLET_SECRET_KEY) as number[];
+      keypair = Keypair.fromSecretKey(Uint8Array.from(secret));
+    } catch (e: any) {
+      throw new Error(`Failed to parse SOLANA_WALLET_SECRET_KEY as JSON array: ${e.message}`);
+    }
+  } else {
+    const keypairPath = env.WALLET_KEYPAIR_PATH;
+    if (!keypairPath) {
+      throw new Error('Either WALLET_KEYPAIR_PATH or SOLANA_WALLET_SECRET_KEY is required to sign operations');
+    }
+    keypair = loadLocalKeypair(keypairPath);
   }
-
-  const keypair = loadLocalKeypair(keypairPath);
   const wallet = new anchor.Wallet(keypair);
 
   const connection = new Connection(rpcUrl, 'confirmed');
