@@ -34,7 +34,7 @@ const HOME_ADVANTAGE = 1.1;
  * history → more trust in the observed rate, less history → fall back
  * toward the league average instead of overreacting to noise.
  */
-const SHRINKAGE_K = 4;
+const SHRINKAGE_K = 4.0;
 
 function shrinkTowardLeagueAverage(observed: number, matchesSampled: number): number {
   const weight = matchesSampled / (matchesSampled + SHRINKAGE_K);

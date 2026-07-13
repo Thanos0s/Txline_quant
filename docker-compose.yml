@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  quant-agent:
+    build: .
+    container_name: txline-quant-agent
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    volumes:
+      - quant-data:/app/data
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      # Add environment variables here or mount a .env file
+      # - SOLANA_NETWORK=devnet
+      # - SOLANA_RPC_URL=...
+      # - SOLANA_KEYPAIR_PATH=...
+      # - SERVICE_LEVEL_ID=...
+      # - LEAGUE_IDS=...
+      # - TXLINE_API_ORIGIN=...
+
+volumes:
+  quant-data:

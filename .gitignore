@@ -3,3 +3,8 @@ dist
 .env
 *.log
 .vscode
+
+# Database
+*.db
+*.db-shm
+*.db-wal

@@ -359,6 +359,24 @@ app.post('/api/quant/verify/:tradeId', wrap(async (req, res) => {
 initDb();
 startBackgroundWorker(30000); // Poll every 30s
 
-app.listen(port, '127.0.0.1', () => {
-  console.log(`API server listening on http://127.0.0.1:${port}`);
+// Serve frontend static assets in production
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, '../dist');
+
+app.use(express.static(distPath));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    next();
+  } else {
+    res.sendFile(path.join(distPath, 'index.html'));
+  }
+});
+
+const serverPort = process.env.PORT ? Number(process.env.PORT) : port;
+app.listen(serverPort, '0.0.0.0', () => {
+  console.log(`API server listening on http://0.0.0.0:${serverPort}`);
 });
