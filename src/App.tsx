@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
@@ -646,12 +646,70 @@ function StreamPanel({ title, endpoint }: { title: string; endpoint: string }) {
 
 // ── root ──────────────────────────────────────────────────────────────────────
 
+type Page = 'landing' | 'terminal' | 'portfolio' | 'streams';
+
+const HASH_MAP: Record<string, Page> = {
+  '#overview':  'landing',
+  '#terminal':  'terminal',
+  '#portfolio': 'portfolio',
+  '#streams':   'streams',
+};
+const PAGE_HASH: Record<Page, string> = {
+  landing:   '#overview',
+  terminal:  '#terminal',
+  portfolio: '#portfolio',
+  streams:   '#streams',
+};
+
 export function App() {
   const [health, setHealth]   = useState<HealthData | null>(null);
   const [cred, setCred]       = useState<CredStatus | null>(null);
   const [apiDown, setApiDown] = useState(false);
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
-  const [activePage, setActivePage] = useState<'landing' | 'terminal' | 'portfolio' | 'streams'>('landing');
+  const [tvTab, setTvTab] = useState<'strengths' | 'screener' | 'backtest'>('strengths');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // ── URL hash routing ───────────────────────────────────────────────────────
+  const initialPage: Page = HASH_MAP[window.location.hash] ?? 'landing';
+  const [activePage, setActivePage] = useState<Page>(initialPage);
+
+  // ── Tab loading state (spinner + old-panel dim) ────────────────────────────
+  const [tabLoading, setTabLoading] = useState(false);
+  const [, startTransition] = useTransition();
+
+  const navigateTo = useCallback((page: Page) => {
+    if (page === activePage) return;
+    // 1. Immediately dim the current panel
+    setTabLoading(true);
+    // 2. Prefetch data for data-heavy tabs
+    if (page === 'portfolio') loadPortfolioData();
+    if (page === 'terminal')  prefetchFixtures();
+    // 3. Defer the actual page swap to the next transition frame
+    startTransition(() => {
+      setActivePage(page);
+      window.location.hash = PAGE_HASH[page];
+    });
+    // 4. Clear spinner after animation completes
+    setTimeout(() => setTabLoading(false), 350);
+  }, [activePage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync activePage when user uses browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const page = HASH_MAP[window.location.hash];
+      if (page && page !== activePage) setActivePage(page);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [activePage]);
+
+  // ── Prefetch helpers (called on hover and on navigateTo) ──────────────────
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  const prefetchFixtures = useCallback(() => {
+    if (prefetchedRef.current.has('fixtures')) return;
+    prefetchedRef.current.add('fixtures');
+    apiFetch<Fixture[]>('/api/fixtures').catch(() => {/* warm cache only */});
+  }, []);
 
   const [portfolio, setPortfolio] = useState<Portfolio>({ bankroll: 10000, exposure: 0 });
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -723,187 +781,358 @@ export function App() {
     return () => clearInterval(t);
   }, [loadPortfolioData]);
 
+  const TICKER_ITEMS = [
+    { symbol: 'ARG/WIN', name: 'Argentina Win', edge: '+8.4%', isPos: true },
+    { symbol: 'BRA/WIN', name: 'Brazil Win', edge: '+11.2%', isPos: true },
+    { symbol: 'FRA/WIN', name: 'France Win', edge: '-2.1%', isPos: false },
+    { symbol: 'CRO/WIN', name: 'Croatia Win', edge: '+4.5%', isPos: true },
+    { symbol: 'OVER/2.5', name: 'Over 2.5 Goals', edge: '+6.9%', isPos: true },
+    { symbol: 'UNDER/2.5', name: 'Under 2.5 Goals', edge: '+9.3%', isPos: true },
+    { symbol: 'TXL/SOL', name: 'TxLINE / Solana', edge: '+4.8%', isPos: true },
+    { symbol: 'WIN/RATE', name: 'Quant Win Rate', edge: '75.0%', isPos: true },
+    { symbol: 'PORT/ROI', name: 'Kelly ROI', edge: '+55.15%', isPos: true },
+  ];
+
+  const teamsFormList = [
+    { name: 'Argentina', attack: 1.34, defense: 0.72, matches: 6, xg: 2.12, form: [1, 1, 1, 0, 1] },
+    { name: 'Brazil', attack: 1.45, defense: 0.65, matches: 5, xg: 2.30, form: [1, 1, 1, 1, 0] },
+    { name: 'France', attack: 1.28, defense: 0.80, matches: 6, xg: 1.95, form: [1, 0, 1, 1, 1] },
+    { name: 'Croatia', attack: 0.95, defense: 0.85, matches: 6, xg: 1.25, form: [0, 1, 1, 0, 1] },
+    { name: 'Morocco', attack: 0.88, defense: 0.60, matches: 6, xg: 1.15, form: [1, 1, 0, 1, 0] },
+    { name: 'England', attack: 1.22, defense: 0.90, matches: 5, xg: 1.80, form: [1, 1, 0, 1, 1] },
+    { name: 'Netherlands', attack: 1.15, defense: 0.95, matches: 5, xg: 1.65, form: [1, 1, 1, 0, 0] },
+    { name: 'Portugal', attack: 1.30, defense: 1.05, matches: 5, xg: 1.90, form: [1, 0, 1, 1, 0] },
+  ];
+
+  const screenerFixtures = [
+    { match: 'Argentina vs France', market: 'Argentina Win', fairOdds: 2.10, marketOdds: 2.45, edge: '+16.7%', status: 'VALUE BUY' },
+    { match: 'Croatia vs Morocco', market: 'Under 2.5 Goals', fairOdds: 1.68, marketOdds: 1.85, edge: '+10.1%', status: 'VALUE BUY' },
+    { match: 'Brazil vs Croatia', market: 'Brazil Win', fairOdds: 1.38, marketOdds: 1.35, edge: '-2.2%', status: 'VETO' },
+    { match: 'England vs Senegal', market: 'Over 2.5 Goals', fairOdds: 1.95, marketOdds: 1.90, edge: '-2.6%', status: 'VETO' },
+    { match: 'Japan vs Spain', market: 'Spain Win', fairOdds: 1.42, marketOdds: 1.65, edge: '+16.2%', status: 'VALUE BUY' },
+  ];
+
+  const filteredTeams = teamsFormList.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredScreener = screenerFixtures.filter(f => f.match.toLowerCase().includes(searchQuery.toLowerCase()) || f.market.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
-    <motion.main 
-      className="container"
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-    >
-
-      {/* ── Header ── */}
-      <motion.header 
-        className="app-header"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1, duration: 0.4 }}
-      >
-        <div className="app-header-left">
-          <motion.div 
-            className="app-logo"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            ⚡
-          </motion.div>
-          <div>
-            <h1>TxLINE Quant Agent</h1>
-            <div className="app-subtitle">Autonomous AI Sports Trading · Solana Devnet</div>
-          </div>
+    <>
+      {/* ── Ticker Tape (TradingView Top Bar) ── */}
+      <div className="ticker-tape" aria-label="Live Market Ticker">
+        <div className="ticker-tape-track">
+          {TICKER_ITEMS.concat(TICKER_ITEMS).map((item, idx) => (
+            <div key={idx} className="ticker-item">
+              <span className="ticker-sym">{item.symbol}</span>
+              <span className="ticker-price">{item.name}</span>
+              <span className={`ticker-chg ${item.isPos ? 'pos' : 'neg'}`}>{item.edge}</span>
+            </div>
+          ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {!apiDown && <span className="header-badge"><span className="live-dot" />LIVE</span>}
-          {health && <span className="muted" style={{ fontSize: '0.7rem' }}>{health.network}</span>}
-        </div>
-      </motion.header>
-
-      {/* ── Page Navigation ── */}
-      <div className="tabs-container">
-        <button 
-          className={`tab-btn ${activePage === 'landing' ? 'active' : ''}`}
-          onClick={() => setActivePage('landing')}
-        >
-          🏠 Overview
-        </button>
-        <button 
-          className={`tab-btn ${activePage === 'terminal' ? 'active' : ''}`}
-          onClick={() => setActivePage('terminal')}
-        >
-          ⚡ Live Terminal
-        </button>
-        <button 
-          className={`tab-btn ${activePage === 'portfolio' ? 'active' : ''}`}
-          onClick={() => setActivePage('portfolio')}
-        >
-          💼 Portfolio
-        </button>
-        <button 
-          className={`tab-btn ${activePage === 'streams' ? 'active' : ''}`}
-          onClick={() => setActivePage('streams')}
-        >
-          📡 Data Streams
-        </button>
       </div>
 
-      {/* ── API Down Banner ── */}
-      <AnimatePresence>
-        {apiDown && (
-          <motion.div 
-            className="banner banner-error"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{ marginBottom: '1.5rem' }}
+      <motion.main 
+        className="container"
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
+
+        {/* ── Header ── */}
+        <motion.header 
+          className="app-header"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+        >
+          <div className="app-header-left">
+            <motion.div 
+              className="app-logo"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              ⚡
+            </motion.div>
+            <div>
+              <h1>TxLINE Quant Agent</h1>
+              <div className="app-subtitle">Autonomous AI Sports Trading · Solana Devnet</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {!apiDown && <span className="header-badge"><span className="live-dot" />LIVE</span>}
+            {health && <span className="muted" style={{ fontSize: '0.7rem' }}>{health.network}</span>}
+          </div>
+        </motion.header>
+
+        {/* ── Page Navigation ── */}
+        <div className="tabs-container">
+          <button
+            id="tab-overview"
+            className={`tab-btn ${activePage === 'landing' ? 'active' : ''}`}
+            onClick={() => navigateTo('landing')}
+            onMouseEnter={() => {/* landing has no heavy data */}}
+            aria-selected={activePage === 'landing'}
           >
-            ⚠️ Cannot reach API server — run <code>npm run dev:api</code>.
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <CredBanner cred={cred} />
-
-      {/* ── Page Routing ── */}
-      <AnimatePresence mode="wait">
-        {activePage === 'landing' && (
-          <motion.div
-            key="landing"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.25 }}
+            🏠 Overview
+          </button>
+          <button
+            id="tab-terminal"
+            className={`tab-btn ${activePage === 'terminal' ? 'active' : ''}`}
+            onClick={() => navigateTo('terminal')}
+            onMouseEnter={prefetchFixtures}
+            aria-selected={activePage === 'terminal'}
           >
-            {/* Landing Hero */}
-            <div className="landing-hero">
-              <h2 className="landing-title">Autonomous Sports Arbitrage &amp; Kelly Sizing</h2>
-              <p className="landing-subtitle">
-                A quantitative, lookahead-bias-free betting terminal powered by the TxLINE real-time oracle stream and cryptographically validated on the Solana blockchain.
-              </p>
-              <button 
-                className="btn-primary" 
-                onClick={() => setActivePage('terminal')}
-                style={{ fontSize: '0.9rem', padding: '0.65rem 1.4rem' }}
-              >
-                Launch Trading Terminal ⚡
-              </button>
-            </div>
+            ⚡ Live Terminal
+          </button>
+          <button
+            id="tab-portfolio"
+            className={`tab-btn ${activePage === 'portfolio' ? 'active' : ''}`}
+            onClick={() => navigateTo('portfolio')}
+            onMouseEnter={loadPortfolioData}
+            aria-selected={activePage === 'portfolio'}
+          >
+            💼 Portfolio
+          </button>
+          <button
+            id="tab-streams"
+            className={`tab-btn ${activePage === 'streams' ? 'active' : ''}`}
+            onClick={() => navigateTo('streams')}
+            onMouseEnter={() => {/* streams connect on demand */}}
+            aria-selected={activePage === 'streams'}
+          >
+            📡 Data Streams
+          </button>
+          {/* Tab loading indicator */}
+          <AnimatePresence>
+            {tabLoading && (
+              <motion.span
+                key="tab-spinner"
+                className="tab-spinner"
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                transition={{ duration: 0.15 }}
+                aria-label="Loading tab…"
+              />
+            )}
+          </AnimatePresence>
+        </div>
 
-            {/* Metrics Snapshot */}
-            <section className="card">
-              <div className="card-header">
-                <h2>📈 Backtest Performance (World Cup fixtures)</h2>
-              </div>
-              <div className="portfolio-stats">
-                <div className="stat-box">
-                  <span className="stat-label">🎯 Model Win Rate</span>
-                  <span className="stat-val positive">75.0%</span>
-                </div>
-                <div className="stat-box">
-                  <span className="stat-label">💰 Backtest P&amp;L</span>
-                  <span className="stat-val positive">+$972.37</span>
-                </div>
-                <div className="stat-box">
-                  <span className="stat-label">📈 Return on Vol (ROI)</span>
-                  <span className="stat-val positive">+55.15%</span>
-                </div>
-                <div className="stat-box">
-                  <span className="stat-label">🛡️ Veto Efficiency</span>
-                  <span className="stat-val">11/15</span>
-                </div>
-              </div>
-            </section>
+        {/* ── API Down Banner ── */}
+        <AnimatePresence>
+          {apiDown && (
+            <motion.div 
+              className="banner banner-error"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{ marginBottom: '1.5rem' }}
+            >
+              ⚠️ Cannot reach API server — run <code>npm run dev:api</code>.
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-            {/* Core Specifications */}
-            <div className="grid-3col">
-              <div className="spec-card">
-                <div className="spec-icon">📊</div>
-                <h3>Dixon-Coles Model</h3>
-                <p>
-                  Adjusts standard independent Poisson goal rate calculations for soccer draw biases ($\rho = -0.12$) to correctly price low-scoring outcomes (0-0, 1-1, 1-0).
+        <CredBanner cred={cred} />
+
+        {/* ── Page Routing ── */}
+        <AnimatePresence mode="wait" onExitComplete={() => setTabLoading(false)}>
+          {activePage === 'landing' && (
+            <motion.div
+              key="landing"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+            >
+              {/* TradingView-Inspired Hero Banner */}
+              <div className="landing-hero">
+                <h2 className="landing-title">
+                  Look first. <span>Trade smarter.</span>
+                </h2>
+                <p className="landing-subtitle">
+                  Where the sports world does quantitative analysis. Run Dixon-Coles goal expectation rates against de-margined odds and anchor bets on Solana.
                 </p>
+                
+                {/* Search Bar */}
+                <div className="tv-search-container">
+                  <span className="tv-search-icon">🔍</span>
+                  <input 
+                    type="text" 
+                    className="tv-search-bar" 
+                    placeholder="Search teams, markets, or strategy parameters..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="spec-card">
-                <div className="spec-icon">⚖️</div>
-                <h3>Kelly Sizing</h3>
-                <p>
-                  Dynamically scales bet stakes proportional to model-to-market probability divergence, maximizing exponential bankroll growth while avoiding capital depletion.
+              {/* TradingView Sub-tabs */}
+              <div className="tv-market-tabs">
+                <button 
+                  className={`tv-market-tab ${tvTab === 'strengths' ? 'active' : ''}`}
+                  onClick={() => setTvTab('strengths')}
+                >
+                  🏆 Team Form (Bayesian)
+                </button>
+                <button 
+                  className={`tv-market-tab ${tvTab === 'screener' ? 'active' : ''}`}
+                  onClick={() => setTvTab('screener')}
+                >
+                  📊 Odds Screener
+                </button>
+                <button 
+                  className={`tv-market-tab ${tvTab === 'backtest' ? 'active' : ''}`}
+                  onClick={() => setTvTab('backtest')}
+                >
+                  📈 Performance Metrics
+                </button>
+              </div>
+
+              {/* Tab Contents */}
+              {tvTab === 'strengths' && (
+                <div className="tv-screener-card">
+                  <table className="tv-screener-table">
+                    <thead>
+                      <tr>
+                        <th>Team Name</th>
+                        <th>Attack Strength</th>
+                        <th>Defense Strength</th>
+                        <th>Expected Goals (λ)</th>
+                        <th>Matches Sampled</th>
+                        <th>Recent Form</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTeams.map((t, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 600 }}>{t.name}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{t.attack.toFixed(2)}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{t.defense.toFixed(2)}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{t.xg.toFixed(2)}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{t.matches} matches</td>
+                          <td>
+                            <div className="tv-sparkline">
+                              {t.form.map((val, idx) => (
+                                <span 
+                                  key={idx} 
+                                  className={`tv-spark-bar ${val === 1 ? 'active' : ''}`}
+                                  style={{ 
+                                    height: val === 1 ? '16px' : '6px', 
+                                    background: val === 1 ? 'var(--green)' : 'var(--red)' 
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {tvTab === 'screener' && (
+                <div className="tv-screener-card">
+                  <table className="tv-screener-table">
+                    <thead>
+                      <tr>
+                        <th>Fixture Matchup</th>
+                        <th>Target Outcome</th>
+                        <th>Fair Price (Model)</th>
+                        <th>Market Price (TxLINE)</th>
+                        <th>Calculated Edge</th>
+                        <th>Strategy Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredScreener.map((f, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 600 }}>{f.match}</td>
+                          <td>{f.market}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{f.fairOdds.toFixed(2)}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace' }}>{f.marketOdds.toFixed(2)}</td>
+                          <td style={{ fontFamily: 'JetBrains Mono, monospace', color: f.edge.startsWith('+') ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                            {f.edge}
+                          </td>
+                          <td>
+                            <span className={`badge ${f.status === 'VALUE BUY' ? 'badge-live' : 'badge-off'}`}>
+                              {f.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {tvTab === 'backtest' && (
+                <section className="card" style={{ marginTop: 0 }}>
+                  <div className="portfolio-stats" style={{ marginTop: '0.5rem' }}>
+                    <div className="stat-box">
+                      <span className="stat-label">🎯 Model Win Rate</span>
+                      <span className="stat-val positive">75.0%</span>
+                    </div>
+                    <div className="stat-box">
+                      <span className="stat-label">💰 Backtest P&amp;L</span>
+                      <span className="stat-val positive">+$972.37</span>
+                    </div>
+                    <div className="stat-box">
+                      <span className="stat-label">📈 Return on Vol (ROI)</span>
+                      <span className="stat-val positive">+55.15%</span>
+                    </div>
+                    <div className="stat-box">
+                      <span className="stat-label">🛡️ Veto Efficiency</span>
+                      <span className="stat-val">11/15</span>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Core Specifications */}
+              <div className="grid-3col">
+                <div className="spec-card">
+                  <div className="spec-icon">📊</div>
+                  <h3>Dixon-Coles Model</h3>
+                  <p>
+                    Adjusts standard independent Poisson goal rate calculations for soccer draw biases ($\rho = -0.12$) to correctly price low-scoring outcomes (0-0, 1-1, 1-0).
+                  </p>
+                </div>
+
+                <div className="spec-card">
+                  <div className="spec-icon">⚖️</div>
+                  <h3>Kelly Sizing</h3>
+                  <p>
+                    Dynamically scales bet stakes proportional to model-to-market probability divergence, maximizing exponential bankroll growth while avoiding capital depletion.
+                  </p>
+                </div>
+
+                <div className="spec-card">
+                  <div className="spec-icon">🛡️</div>
+                  <h3>Risk Management</h3>
+                  <p>
+                    Applies three strict sweep-optimized guardrails: minimum historical match sample size ($\ge 3$), maximum odds cap ($3.50$), and minimum edge threshold ($10\%$).
+                  </p>
+                </div>
+              </div>
+
+              {/* System Setup Guide */}
+              <div className="setup-box">
+                <h4>🛠️ Run Strategy Backtests Locally</h4>
+                <p className="muted" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
+                  Run the event-driven sliding window backtest or hyperparameter sweeps inside your terminal:
                 </p>
+                <pre style={{ marginBottom: '0.5rem' }}>npx tsx scripts/backtest.ts</pre>
+                <pre>npx tsx scripts/backtest-sweep.ts</pre>
               </div>
-
-              <div className="spec-card">
-                <div className="spec-icon">🛡️</div>
-                <h3>Risk Management</h3>
-                <p>
-                  Applies three strict sweep-optimized guardrails: minimum historical match sample size ($\ge 3$), maximum odds cap ($3.50$), and minimum edge threshold ($10\%$).
-                </p>
-              </div>
-
-              <div className="spec-card">
-                <div className="spec-icon">⛓️</div>
-                <h3>Solana Settlement</h3>
-                <p>
-                  Logs settled sequences in a local ledger database and cryptographically verifies match scores on-chain via the Solana Devnet oracle contract.
-                </p>
-              </div>
-            </div>
-
-            {/* System Setup Guide */}
-            <div className="setup-box">
-              <h4>🛠️ Run Strategy Backtests Locally</h4>
-              <p className="muted" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
-                Run the event-driven sliding window backtest or hyperparameter sweeps inside your terminal:
-              </p>
-              <pre style={{ marginBottom: '0.5rem' }}>npx tsx scripts/backtest.ts</pre>
-              <pre>npx tsx scripts/backtest-sweep.ts</pre>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
         {activePage === 'terminal' && (
           <motion.div
             key="terminal"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -933,7 +1162,7 @@ export function App() {
           <motion.div
             key="portfolio"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -1079,7 +1308,7 @@ export function App() {
           <motion.div
             key="streams"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -1090,6 +1319,7 @@ export function App() {
         )}
       </AnimatePresence>
     </motion.main>
+  </>
   );
 }
 

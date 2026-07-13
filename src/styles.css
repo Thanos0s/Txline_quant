@@ -4,34 +4,34 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── CSS Variables ───────────────────────────────── */
+/* ── CSS Variables (TradingView Dark Theme) ───────── */
 :root {
-  --bg-base:       #0b0f19;
-  --bg-surface:    #161e2e;
-  --bg-elevated:   #1f293d;
-  --bg-hover:      #28354e;
-  --border:        rgba(99, 130, 175, 0.2);
-  --border-bright: rgba(99, 130, 175, 0.4);
+  --bg-base:       #131722;
+  --bg-surface:    #1c2030;
+  --bg-elevated:   #2a2e39;
+  --bg-hover:      #2f3542;
+  --border:        #2a2e39;
+  --border-bright: #363c4e;
 
-  --accent:        #6366f1;
-  --accent-glow:   rgba(99, 102, 241, 0.2);
-  --accent-bright: #818cf8;
-  --green:         #10b981;
-  --green-dim:     rgba(16, 185, 129, 0.12);
-  --red:           #f43f5e;
-  --red-dim:       rgba(244, 63, 94, 0.12);
-  --gold:          #f59e0b;
-  --gold-dim:      rgba(245, 158, 11, 0.12);
+  --accent:        #2962ff;
+  --accent-glow:   rgba(41, 98, 255, 0.15);
+  --accent-bright: #4776ff;
+  --green:         #089981;
+  --green-dim:     rgba(8, 153, 129, 0.15);
+  --red:           #f23645;
+  --red-dim:       rgba(242, 54, 69, 0.15);
+  --gold:          #ff9800;
+  --gold-dim:      rgba(255, 152, 0, 0.12);
 
-  --text-primary:  #f8fafc;
-  --text-secondary:#cbd5e1;
-  --text-muted:    #94a3b8;
+  --text-primary:  #f0f3fa;
+  --text-secondary:#d1d4dc;
+  --text-muted:    #868993;
 
-  --radius-sm:     6px;
-  --radius-md:     10px;
-  --radius-lg:     14px;
+  --radius-sm:     4px;
+  --radius-md:     8px;
+  --radius-lg:     12px;
 
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, SegoeUI, sans-serif;
   font-size: 14px;
   color: var(--text-primary);
   background: var(--bg-base);
@@ -42,9 +42,7 @@
 body {
   background: var(--bg-base);
   min-height: 100vh;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 30% at 80% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+  position: relative;
 }
 
 /* ── Layout ──────────────────────────────────────── */
@@ -528,6 +526,7 @@ li strong { color: var(--text-primary); }
 /* ── Tabs UI ─────────────────────────────────────── */
 .tabs-container {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.75rem;
@@ -545,6 +544,7 @@ li strong { color: var(--text-primary); }
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .tab-btn:hover {
@@ -559,48 +559,252 @@ li strong { color: var(--text-primary); }
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
 }
 
-/* ── Landing Page Hero & Details ──────────────────── */
-.landing-hero {
-  text-align: center;
-  padding: 3rem 1rem;
-  background: linear-gradient(180deg, var(--bg-surface) 0%, transparent 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 1.75rem;
-  position: relative;
-  overflow: hidden;
+/* Tab loading spinner — appears in the tab bar next to the buttons */
+.tab-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(99, 102, 241, 0.25);
+  border-top-color: var(--accent-bright);
+  animation: tab-spin 0.65s linear infinite;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
 }
 
-.landing-hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
-  pointer-events: none;
+@keyframes tab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Landing Page Hero & Details ──────────────────── */
+/* ── Ticker Tape (TradingView top ribbon) ───────── */
+.ticker-tape {
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  height: 38px;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 100;
+  user-select: none;
+}
+
+.ticker-tape-track {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker-scroll 35s linear infinite;
+  gap: 2.5rem;
+  padding-left: 2rem;
+}
+
+.ticker-tape-track:hover {
+  animation-play-state: paused;
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+
+.ticker-sym {
+  color: var(--text-primary);
+  font-weight: bold;
+}
+
+.ticker-price {
+  color: var(--text-secondary);
+}
+
+.ticker-chg {
+  font-weight: 600;
+}
+
+.ticker-chg.pos { color: var(--green); }
+.ticker-chg.neg { color: var(--red); }
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── Landing Hero (TradingView Look & Feel) ───────── */
+.landing-hero {
+  text-align: center;
+  padding: 5.5rem 1.5rem 4.5rem;
+  background: radial-gradient(circle at 50% 10%, rgba(41, 98, 255, 0.08) 0%, transparent 65%);
+  margin-bottom: 2rem;
+  position: relative;
+  border-bottom: 1px solid var(--border);
 }
 
 .landing-title {
-  font-size: 2.2rem;
+  font-size: 3.5rem;
   font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.04em;
-  margin-bottom: 0.75rem;
-  background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-bright));
+  line-height: 1.08;
+  letter-spacing: -0.05em;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.landing-title span {
+  background: linear-gradient(135deg, #2962ff 30%, #00d2ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .landing-subtitle {
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   color: var(--text-secondary);
-  max-width: 600px;
-  margin: 0 auto 1.5rem;
-  line-height: 1.6;
+  max-width: 680px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.5;
+  font-weight: 400;
 }
 
+/* TradingView Ticker Search Bar */
+.tv-search-container {
+  max-width: 540px;
+  margin: 0 auto;
+  position: relative;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tv-search-bar {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1.25rem 0.95rem 2.8rem;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.tv-search-bar:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.tv-search-icon {
+  position: absolute;
+  left: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+/* ── TradingView Market Tabs & Screener ───────────── */
+.tv-market-tabs {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1.5px solid var(--border);
+  padding-bottom: 0.1rem;
+  margin: 2.5rem 0 1rem;
+  justify-content: flex-start;
+}
+
+.tv-market-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.6rem 0.2rem 0.75rem;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.tv-market-tab:hover {
+  color: var(--text-primary);
+}
+
+.tv-market-tab.active {
+  color: var(--accent-bright);
+}
+
+.tv-market-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1.5px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* Screener Layout */
+.tv-screener-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0;
+  overflow: hidden;
+}
+
+.tv-screener-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tv-screener-table th {
+  padding: 0.8rem 1.2rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.tv-screener-table td {
+  padding: 0.9rem 1.2rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-weight: 500;
+  transition: background 0.12s;
+}
+
+.tv-screener-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tv-sparkline {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 18px;
+}
+
+.tv-spark-bar {
+  width: 4px;
+  background: var(--green);
+  opacity: 0.4;
+  border-radius: 1px;
+}
+
+.tv-spark-bar.active {
+  opacity: 1;
+}
+
+/* Grid Cards */
 .grid-3col {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.25rem;
   margin-top: 2rem;
 }
@@ -608,28 +812,27 @@ li strong { color: var(--text-primary); }
 .spec-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: 1.5rem;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s, transform 0.2s;
 }
 
 .spec-card:hover {
   border-color: var(--border-bright);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.05);
   transform: translateY(-2px);
 }
 
 .spec-icon {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   margin-bottom: 0.75rem;
-  color: var(--accent-bright);
 }
 
 .spec-card h3 {
   font-size: 0.95rem;
   color: var(--text-primary);
-  margin: 0 0 0.5rem 0;
+  margin-bottom: 0.5rem;
   text-transform: none;
+  font-weight: 600;
   letter-spacing: normal;
 }
 
@@ -640,16 +843,15 @@ li strong { color: var(--text-primary); }
 }
 
 .setup-box {
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 1.25rem;
   margin-top: 1.5rem;
-  text-align: left;
 }
 
 .setup-box h4 {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--text-primary);
   margin-bottom: 0.5rem;
   text-transform: uppercase;
@@ -658,11 +860,12 @@ li strong { color: var(--text-primary); }
 
 .setup-box pre {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--accent-bright);
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.5rem 0.75rem;
+  background: #131722;
+  padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
   overflow-x: auto;
 }
 
