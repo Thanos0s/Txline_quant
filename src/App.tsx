@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 
@@ -646,12 +646,68 @@ function StreamPanel({ title, endpoint }: { title: string; endpoint: string }) {
 
 // ── root ──────────────────────────────────────────────────────────────────────
 
+type Page = 'landing' | 'terminal' | 'portfolio' | 'streams';
+
+const HASH_MAP: Record<string, Page> = {
+  '#overview':  'landing',
+  '#terminal':  'terminal',
+  '#portfolio': 'portfolio',
+  '#streams':   'streams',
+};
+const PAGE_HASH: Record<Page, string> = {
+  landing:   '#overview',
+  terminal:  '#terminal',
+  portfolio: '#portfolio',
+  streams:   '#streams',
+};
+
 export function App() {
   const [health, setHealth]   = useState<HealthData | null>(null);
   const [cred, setCred]       = useState<CredStatus | null>(null);
   const [apiDown, setApiDown] = useState(false);
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
-  const [activePage, setActivePage] = useState<'landing' | 'terminal' | 'portfolio' | 'streams'>('landing');
+
+  // ── URL hash routing ───────────────────────────────────────────────────────
+  const initialPage: Page = HASH_MAP[window.location.hash] ?? 'landing';
+  const [activePage, setActivePage] = useState<Page>(initialPage);
+
+  // ── Tab loading state (spinner + old-panel dim) ────────────────────────────
+  const [tabLoading, setTabLoading] = useState(false);
+  const [, startTransition] = useTransition();
+
+  const navigateTo = useCallback((page: Page) => {
+    if (page === activePage) return;
+    // 1. Immediately dim the current panel
+    setTabLoading(true);
+    // 2. Prefetch data for data-heavy tabs
+    if (page === 'portfolio') loadPortfolioData();
+    if (page === 'terminal')  prefetchFixtures();
+    // 3. Defer the actual page swap to the next transition frame
+    startTransition(() => {
+      setActivePage(page);
+      window.location.hash = PAGE_HASH[page];
+    });
+    // 4. Clear spinner after animation completes
+    setTimeout(() => setTabLoading(false), 350);
+  }, [activePage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync activePage when user uses browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const page = HASH_MAP[window.location.hash];
+      if (page && page !== activePage) setActivePage(page);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [activePage]);
+
+  // ── Prefetch helpers (called on hover and on navigateTo) ──────────────────
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  const prefetchFixtures = useCallback(() => {
+    if (prefetchedRef.current.has('fixtures')) return;
+    prefetchedRef.current.add('fixtures');
+    apiFetch<Fixture[]>('/api/fixtures').catch(() => {/* warm cache only */});
+  }, []);
 
   const [portfolio, setPortfolio] = useState<Portfolio>({ bankroll: 10000, exposure: 0 });
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -759,30 +815,56 @@ export function App() {
 
       {/* ── Page Navigation ── */}
       <div className="tabs-container">
-        <button 
+        <button
+          id="tab-overview"
           className={`tab-btn ${activePage === 'landing' ? 'active' : ''}`}
-          onClick={() => setActivePage('landing')}
+          onClick={() => navigateTo('landing')}
+          onMouseEnter={() => {/* landing has no heavy data */}}
+          aria-selected={activePage === 'landing'}
         >
           🏠 Overview
         </button>
-        <button 
+        <button
+          id="tab-terminal"
           className={`tab-btn ${activePage === 'terminal' ? 'active' : ''}`}
-          onClick={() => setActivePage('terminal')}
+          onClick={() => navigateTo('terminal')}
+          onMouseEnter={prefetchFixtures}
+          aria-selected={activePage === 'terminal'}
         >
           ⚡ Live Terminal
         </button>
-        <button 
+        <button
+          id="tab-portfolio"
           className={`tab-btn ${activePage === 'portfolio' ? 'active' : ''}`}
-          onClick={() => setActivePage('portfolio')}
+          onClick={() => navigateTo('portfolio')}
+          onMouseEnter={loadPortfolioData}
+          aria-selected={activePage === 'portfolio'}
         >
           💼 Portfolio
         </button>
-        <button 
+        <button
+          id="tab-streams"
           className={`tab-btn ${activePage === 'streams' ? 'active' : ''}`}
-          onClick={() => setActivePage('streams')}
+          onClick={() => navigateTo('streams')}
+          onMouseEnter={() => {/* streams connect on demand */}}
+          aria-selected={activePage === 'streams'}
         >
           📡 Data Streams
         </button>
+        {/* Tab loading indicator */}
+        <AnimatePresence>
+          {tabLoading && (
+            <motion.span
+              key="tab-spinner"
+              className="tab-spinner"
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              transition={{ duration: 0.15 }}
+              aria-label="Loading tab…"
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── API Down Banner ── */}
@@ -803,12 +885,12 @@ export function App() {
       <CredBanner cred={cred} />
 
       {/* ── Page Routing ── */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" onExitComplete={() => setTabLoading(false)}>
         {activePage === 'landing' && (
           <motion.div
             key="landing"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -903,7 +985,7 @@ export function App() {
           <motion.div
             key="terminal"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -933,7 +1015,7 @@ export function App() {
           <motion.div
             key="portfolio"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >
@@ -1079,7 +1161,7 @@ export function App() {
           <motion.div
             key="streams"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: tabLoading ? 0.4 : 1, y: tabLoading ? -4 : 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.25 }}
           >

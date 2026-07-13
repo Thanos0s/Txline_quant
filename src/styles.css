@@ -528,6 +528,7 @@ li strong { color: var(--text-primary); }
 /* ── Tabs UI ─────────────────────────────────────── */
 .tabs-container {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.75rem;
@@ -545,6 +546,7 @@ li strong { color: var(--text-primary); }
   padding: 0.5rem 1rem;
   border-radius: var(--radius-sm);
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .tab-btn:hover {
@@ -557,6 +559,23 @@ li strong { color: var(--text-primary); }
   border-color: var(--accent);
   color: var(--accent-bright);
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+}
+
+/* Tab loading spinner — appears in the tab bar next to the buttons */
+.tab-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(99, 102, 241, 0.25);
+  border-top-color: var(--accent-bright);
+  animation: tab-spin 0.65s linear infinite;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+@keyframes tab-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Landing Page Hero & Details ──────────────────── */
