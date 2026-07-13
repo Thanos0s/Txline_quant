@@ -1,105 +1,122 @@
-# ⚡ TxLINE Quant Agent — Autonomous AI Sports Trading Terminal
+# ⚡ Txline Quant Trading Terminal & Strategy Agent
 
-TxLINE Quant Agent is a production-grade, end-to-end autonomous sports trading agent on Solana, powered by the **TxLINE** real-time sports data oracle feed. The agent runs an independent quantitative model, evaluates value edges against live market odds, implements mathematical bankroll management, and verifies all settles on-chain on Solana Devnet.
+A premium, containerized, multi-page quantitative trading terminal and strategy execution engine. This terminal leverages the **Dixon-Coles Poisson model** for football (soccer) goal modeling, computes mathematical edge comparisons against **TxLINE's de-margined StablePrice** live odds feeds, and deploys **Kelly Criterion sizing rules** to execute value trades on the Solana Devnet blockchain.
 
----
-
-## 🚀 Key Features
-
-1. **📊 Dixon-Coles Poisson Model:** An advanced probability adjustment ($\rho = -0.12$) correcting independent Poisson models to accurately price low-scoring draws (0-0, 1-1, 1-0, etc.) in soccer matches.
-2. **⚖️ Kelly Criterion Risk Sizing:** Dynamically scales bet sizes based on estimated edge and model confidence, maximizing long-term bankroll growth while avoiding risk of ruin.
-3. **🛡️ Sweep-Optimized Risk Filters:** Out-of-sample parameter sweep over historical fixtures established safety guardrails to maximize win-rate and avoid high-variance underdogs:
-   - **Odds Cap (`MAX_TRADABLE_ODDS = 3.50`)**
-   - **Edge Edge Threshold (`MIN_REQUIRED_EDGE = 10%`)**
-   - **Minimum Team History (`MIN_MATCHES_SAMPLED = 3`)**
-4. **⛓️ Solana On-Chain Verification:** Settlement proofs are cryptographically tethered to on-chain sequences using Solana's `validateStatV2` method.
-5. **🎛️ Premium Trading Terminal Dashboard:** High-fidelity, dark-mode terminal showing real-time SSE streams, auto-selected fixtures, live edge indicators, live win rates, and a quick-action "Verify" button for on-chain proof checks.
+Developed as a unified high-contrast Slate-Indigo full-stack web application, it serves both the frontend React dashboard and the backend Express API server from a single node container.
 
 ---
 
-## 🔬 Quant Model Performance & Backtest
-
-The model was tested using a lookahead-bias-free event-driven backtest script over real historical World Cup matches:
-
-* **Win Rate:** **75.0%** (3 Wins / 1 Loss)
-* **Total Profit:** **+$972.37** (on a $10,000 baseline)
-* **Return on Volume (ROI):** **+55.15%**
-* **Veto Efficiency:** Correctly avoided **11/15** fixtures where the edge was insufficient or volatility was too high (saving the bankroll from 11 theoretical losses).
+## 🚀 Deployed URL
+The service is deployed live on Google Cloud Run:
+👉 **[https://hackwin-318775590328.us-central1.run.app](https://hackwin-318775590328.us-central1.run.app)**
 
 ---
 
-## 🛠️ Architecture
+## 🛠️ Architecture & Core Components
 
 ```mermaid
 graph TD
-    A[TxLINE API] -->|SSE live score & odds stream| B[Express API Server]
-    B -->|Ingest historical form| C[Dixon-Coles Model]
-    C -->|Fair prices & probabilities| D[Edge Detector]
-    D -->|Compare against de-margined odds| E[Kelly Risk Engine]
-    E -->|Edge >= 10% & Odds <= 3.50| F[Simulated Portfolio Database]
-    F -->|Match settled| G[On-chain Solana validator]
-    G -->|Verify proof on devnet| H[Devnet Tx Confirmed]
+    A[Vite React Frontend] -->|REST & SSE Client| B[Express API Server]
+    B -->|Ingestion Worker| C[TxLINE Upstream API]
+    B -->|Model Engine| D[Dixon-Coles Poisson Solver]
+    B -->|Risk Engine| E[Kelly Sizing & Veto System]
+    B -->|Database| F[SQLite Database]
+    B -->|On-Chain Helper| G[Solana Devnet Program]
 ```
+
+### 1. 🗂️ Multi-Page Frontend Dashboard (`src/App.tsx`)
+A client-side routed SPA built with **React**, **TypeScript**, and **Framer Motion** for sleek micro-animations. It is structured into four main tabs:
+* **🏠 Overview (Landing Page):** High-level view of the quant model specs, current backtest metrics, mathematical details of the Dixon-Coles solver, and step-by-step setup guides.
+* **⚡ Live Terminal:** Lists soccer fixtures from the ingested snapshots and displays the real-time **Edge Detector** for the selected fixture. Enables placing simulated trades.
+* **💼 Agent Portfolio:** Tracks simulated portfolio metrics: Bankroll ($10,000 baseline), active trade exposure, win-rate accuracy indicators, and the complete settled trades log with on-chain verification controls.
+* **📡 Data Streams:** Houses custom fixtures and scores lookup forms and displays live Server-Sent Event (SSE) stream outputs for scores and odds ticks.
+
+### 2. 📊 Quant Strategy & Valuation Engine (`src/lib/quant/`)
+* **Dixon-Coles Poisson Model (`poisson.ts`):** Calculates joint goal probabilities using independent Poisson processes adjusted by the Maher/Dixon-Coles low-score correction parameter ($\rho = -0.12$) to correct for the under-representation of low-scoring matches (0-0, 1-0, 0-1, 1-1).
+* **Relative-Strength Solver (`fair-price.ts`):** Derives expected goals (lambda) by scaling a team's offensive scoring strength against their opponent's defensive conceding strength, normalized by the tournament average. In-play matches scale pre-match expected goals down by the remaining fraction of play.
+* **Empirical-Bayes Shrinkage (`team-form.ts`):** Fits observed team goal rates to the tournament average using a Bayesian shrinkage regularizer ($K = 2.0$) to stabilize projections when sample sizes are small (common in international cups).
+* **Kelly Sizing & Veto Guardrails (`strategy.ts`):** Scales stakes dynamically using the Kelly Criterion ($0.25 \times$ scaling multiplier to avoid drawdowns, with a hard maximum exposure cap of 5% bankroll per trade). Automatically vetoes matches with:
+  * Insufficient matches sampled ($<3$ matches)
+  * Duplicate active bets on the same outcome
+  * Market odds exceeding the risk threshold ($>3.50$)
+  * Positive edge below the value hurdle ($<10\%$)
+  * Match time in the final minutes of regulation ($>90\%$ elapsed)
+
+### 3. 💾 Data Sync & DB (`db.ts`, `worker.ts`, `server.ts`)
+* **SQLite Database:** Local storage (`quant_agent.db`) tracking active bankroll, current exposures, and trade histories.
+* **Background Settlement Worker:** Polls finished matches every 30 seconds, reads score snapshots from TxLINE, settles bets, updates database states, and synchronizes the frontend via state-refresh triggers.
 
 ---
 
-## 📦 Setup & Installation
+## 📈 Quant Backtest Performance
+Tuned for the highest possible predictive accuracy, the model parameters achieve the following stats on the historical World Cup tournament snapshot:
+* **Win Rate:** **`75.0%`** (3 wins / 1 loss)
+* **Total P&L:** **`+$972.37`** (starting from a $10,000 bankroll)
+* **Return on Volume (ROI):** **`+55.15%`**
+* **Risk Vetoes:** Effectively filtered out **11 high-risk/insufficient-data fixtures** to preserve capital.
 
-### 1. Prerequisite TxLINE References
-Clone the reference Solana IDL repo to ensure the IDL file `txoracle.json` is located in your path:
-```bash
-git clone https://github.com/txodds/tx-on-chain.git reference/tx-on-chain
-```
+---
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+## 💻 Local Development Setup
 
-### 3. Environment Configuration
-Create a `.env` file in the root folder using `.env.example` as a template:
+### 1. Requirements
+* Node.js v18 or v20
+* A local Solana keypair file (located at `~/.config/solana/id.json` by default)
+
+### 2. Configuration
+Create a `.env` file in the root directory:
 ```env
 SOLANA_NETWORK=devnet
-RPC_URL=https://api.devnet.solana.com
-TXLINE_API_ORIGIN=https://api.devnet.txline.io
-WALLET_KEYPAIR_PATH=~/.config/solana/id.json
+SOLANA_RPC_URL=https://api.devnet.solana.com
+TXLINE_API_ORIGIN=https://txline-dev.txodds.com
+TXLINE_API_TOKEN=your_txline_api_token
+WALLET_KEYPAIR_PATH=C:/Users/your_username/.config/solana/id.json
 ```
 
----
-
-## 🏃 Running the Application
-
-### Start the API Server (Terminal 1)
+### 3. Run Locally
+Install dependencies and launch the dev environment:
 ```bash
+# Install dependencies
+npm install
+
+# Start the Express API server (port 3001)
 npm run dev:api
-```
-*Bootstraps the Express API server, authenticates guest JWT, launches the background settlement worker, and opens port `3001`.*
 
-### Start the Web UI (Terminal 2)
-```bash
+# Start the Vite Frontend Dev Server (port 5173)
 npm run dev:web
 ```
-*Launches the Vite dev server at `http://localhost:5173`.*
 
 ---
 
-## 📊 Running Backtests & Parameter Sweeps
+## 🐳 Docker & Cloud Deployment
 
-To evaluate the strategy and run optimizations locally without starting the UI:
-
-### Run the Sliding Window Backtest
+### Local Container Build
+To build and run the unified application locally using Docker:
 ```bash
-npx tsx scripts/backtest.ts
-```
-*Runs the Dixon-Coles quant model against the most recent 15 completed fixtures.*
+# Build the container
+docker build -t txline-quant-agent .
 
-### Run the Hyperparameter Sweep
-```bash
-npx tsx scripts/backtest-sweep.ts
+# Run the container (binding local port 3001)
+docker run -d -p 3001:3001 --env-file .env txline-quant-agent
 ```
-*Sweeps through combinations of odds caps, edges, and sample sizes to find the parameters with the highest win rate.*
+
+### Multi-Container Orchestration
+To easily orchestrate the containerized application and persist database storage:
+```bash
+docker-compose up --build -d
+```
+
+### Google Cloud Run Deployment
+Deploy the unified container with a single command:
+```bash
+# Deploy code source directly
+gcloud run deploy hackwin --source . --port 3001 --allow-unauthenticated --region=us-central1
+
+# Inject environment variables (using pipe delimiters for comma-containing keypairs)
+gcloud run services update hackwin --update-env-vars="^|^SOLANA_NETWORK=devnet|SOLANA_RPC_URL=https://api.devnet.solana.com|TXLINE_API_ORIGIN=https://txline-dev.txodds.com|TXLINE_API_TOKEN=your_txline_api_token|SOLANA_WALLET_SECRET_KEY=[your_solana_private_key_array_here]" --region=us-central1
+```
 
 ---
 
-## 🔐 On-Chain Solana Verification
-Every simulated trade logs a sequence number `seq` upon match resolution. When the user clicks **Verify** on the dashboard, the server queries the TxLINE Oracle contract using Solana's `validateStatV2` instruction to cryptographically verify that the reported match score matches the consensus data stored in the oracle contract.
+## 📝 License
+This project is licensed under the MIT License.
