@@ -1,0 +1,330 @@
+---
+title: "Quickstart"
+description: "Get started with the TxLINE API in minutes"
+---
+
+## Overview
+
+TxLINE provides cryptographically verifiable sports data through a hybrid Solana on-chain and TxODDS off-chain system. Access fixtures, odds, and scores with time-limited API tokens secured by on-chain subscriptions.
+
+---
+
+## Getting Started
+
+<Info>
+**Want to try for free?** Check out our [World Cup Free Tier](/documentation/worldcup) for instant access to World Cup and International Friendlies data with no payment required.
+</Info>
+
+Choose the path that matches your use case:
+
+- **Free World Cup path**: Follow the [World Cup Free Tier](/documentation/worldcup) guide for service levels 1 or 12. No TxL purchase is required.
+- **Paid subscription path**: Continue below to purchase TxL if needed, subscribe on-chain, and activate an API token.
+
+<Info>
+The snippets below show the required integration pieces. To run them in your own app, provide a Solana wallet object, use the matching TxLINE IDL/types for your network, and keep the Solana RPC, program ID, guest JWT host, and API host on the same network.
+</Info>
+
+<Note>
+Free tiers do not require a TxL purchase, but the on-chain `subscribe` transaction still needs SOL for Solana transaction fees and any account rent. On devnet, fund your wallet with a devnet SOL airdrop before subscribing.
+</Note>
+
+## Select Your Network
+
+Pick one network and use it consistently for every step. The Solana RPC, program ID, TxL mint, guest JWT, and activation endpoint must all be on the same network.
+
+| Network | Program ID | TxL Token Mint | Guest Auth | API Base |
+|---------|------------|----------------|------------|----------|
+| Mainnet | `9ExbZjAapQww1vfcisDmrngPinHTEfpjYRWMunJgcKaA` | `Zhw9TVKp68a1QrftncMSd6ELXKDtpVMNuMGr1jNwdeL` | `https://txline.txodds.com/auth/guest/start` | `https://txline.txodds.com/api/` |
+| Devnet | `6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J` | `4Zao8ocPhmMgq7PdsYWyxvqySMGx7xb9cMftPMkEokRG` | `https://txline-dev.txodds.com/auth/guest/start` | `https://txline-dev.txodds.com/api/` |
+
+```typescript
+import * as anchor from "@coral-xyz/anchor";
+import type { Txoracle } from "./types/txoracle"; // Use the matching mainnet/devnet type
+import txoracleIdl from "./idl/txoracle.json"; // Use the matching mainnet/devnet IDL
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
+import axios from "axios";
+import nacl from "tweetnacl";
+
+const NETWORK: "mainnet" | "devnet" = "mainnet";
+
+const CONFIG = {
+  mainnet: {
+    rpcUrl: "https://api.mainnet-beta.solana.com",
+    apiOrigin: "https://txline.txodds.com",
+    programId: new PublicKey("9ExbZjAapQww1vfcisDmrngPinHTEfpjYRWMunJgcKaA"),
+    txlTokenMint: new PublicKey("Zhw9TVKp68a1QrftncMSd6ELXKDtpVMNuMGr1jNwdeL"),
+  },
+  devnet: {
+    rpcUrl: "https://api.devnet.solana.com",
+    apiOrigin: "https://txline-dev.txodds.com",
+    programId: new PublicKey("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"),
+    txlTokenMint: new PublicKey("4Zao8ocPhmMgq7PdsYWyxvqySMGx7xb9cMftPMkEokRG"),
+  },
+} as const;
+
+const { rpcUrl, apiOrigin, programId, txlTokenMint } = CONFIG[NETWORK];
+const apiBaseUrl = `${apiOrigin}/api`;
+
+const connection = new Connection(rpcUrl, "confirmed");
+const provider = new anchor.AnchorProvider(connection, wallet, {
+  commitment: "confirmed",
+});
+anchor.setProvider(provider);
+
+const program = new anchor.Program<Txoracle>(
+  txoracleIdl as Txoracle,
+  provider
+);
+
+if (!program.programId.equals(programId)) {
+  throw new Error(
+    `Loaded IDL program ${program.programId.toBase58()} does not match ${NETWORK} program ${programId.toBase58()}`
+  );
+}
+```
+
+<Warning>
+Do not activate a devnet transaction on `https://txline.txodds.com`, and do not activate a mainnet transaction on `https://txline-dev.txodds.com`. Use the matching `apiOrigin` from the selected network.
+</Warning>
+
+<Note>
+The `wallet` variable is your signing wallet. In a browser app, use your wallet adapter's public key, `signTransaction`, and `signMessage` methods. In a local Anchor script, use `ANCHOR_WALLET` and `ANCHOR_PROVIDER_URL` to load the payer wallet.
+</Note>
+
+<Info>
+For a runnable devnet version of the activation and stream flow, use the scripts in [Runnable Devnet Examples](/documentation/examples/devnet-examples). They include free-tier activation, odds and scores streams, fixture validation, and `validateStatV2` examples.
+</Info>
+
+## Purchase TxL (Optional)
+
+<Info>
+**Note**: Purchasing TxL tokens is optional. We offer [free tiers for World Cup and International Friendlies](/documentation/worldcup) data with no payment required. View all [subscription tiers](/documentation/subscription-tiers) to see free and premium options.
+</Info>
+
+In order to purchase TxL, your wallet will need to be funded with USDT. If you don't have USDT on Solana, you can swap for it using [Jupiter](https://jup.ag/) or another exchange.
+
+TxL purchases use a 2-step process: request a quote from the backend, then verify and sign the transaction locally.
+
+### Step 1: Request Purchase Quote
+
+```typescript
+// Get guest JWT
+const authResponse = await axios.post(`${apiOrigin}/auth/guest/start`);
+const jwt = authResponse.data.token;
+
+// Request purchase quote
+const txlineAmount = 50; // Amount of TxL tokens to purchase
+
+const quoteResponse = await fetch(`${apiBaseUrl}/guest/purchase/quote`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${jwt}`
+  },
+  body: JSON.stringify({
+    buyerPubkey: wallet.publicKey.toBase58(),
+    txlineAmount: txlineAmount
+  })
+});
+
+const quoteData = await quoteResponse.json();
+console.log(`Base Cost: ${quoteData.baseUsdtCost} USDT`);
+console.log(`Premium Fee: ${quoteData.feeUsdtAmount} USDT`);
+console.log(`Total: ${quoteData.totalUsdtCharged} USDT`);
+```
+
+### Step 2: Verify and Sign Transaction
+
+```typescript
+// Deserialize the transaction from the quote
+const txBuffer = Buffer.from(quoteData.transactionBase64, "base64");
+const transaction = anchor.web3.Transaction.from(txBuffer);
+
+// Verify transaction safety locally (recommended)
+// This ensures the transaction matches what you requested
+
+// Sign the transaction with either a local Keypair or a wallet adapter
+const signedTransaction =
+  "secretKey" in wallet
+    ? (transaction.partialSign(wallet), transaction)
+    : await wallet.signTransaction(transaction);
+
+// Broadcast to Solana
+const txSignature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+  skipPreflight: false,
+  preflightCommitment: "confirmed"
+});
+
+// Confirm transaction
+await connection.confirmTransaction(txSignature, "confirmed");
+console.log("Purchase successful:", txSignature);
+```
+
+<Note>
+TxODDS may refuse purchase requests and ask for KYC (Know Your Customer) verification in accordance with compliance requirements.
+</Note>
+
+## Subscribe On-Chain
+
+Subscribe to TxLINE on-chain after choosing a service level. Paid tiers require TxL; the free World Cup tiers do not require a TxL purchase. Choose between a standard subscription or a custom league selection.
+
+Derive the shared accounts once before using either subscription tab:
+
+```typescript
+const [tokenTreasuryPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("token_treasury_v2")],
+  program.programId
+);
+
+const tokenTreasuryVault = getAssociatedTokenAddressSync(
+  txlTokenMint,
+  tokenTreasuryPda,
+  true,
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID
+);
+
+const [pricingMatrixPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("pricing_matrix")],
+  program.programId
+);
+
+const userTokenAccount = getAssociatedTokenAddressSync(
+  txlTokenMint,
+  provider.wallet.publicKey,
+  false,
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID
+);
+```
+
+<Tabs>
+  <Tab title="Standard Subscription">
+    ```typescript
+    const SERVICE_LEVEL_ID = 1;
+    const DURATION_WEEKS = 4;
+    const SELECTED_LEAGUES: number[] = []; // Standard bundle
+
+    const txSig = await program.methods
+      .subscribe(SERVICE_LEVEL_ID, DURATION_WEEKS)
+      .accounts({
+        user: provider.wallet.publicKey,
+        pricingMatrix: pricingMatrixPda,
+        tokenMint: txlTokenMint,
+        userTokenAccount,
+        tokenTreasuryVault,
+        tokenTreasuryPda,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    ```
+  </Tab>
+  <Tab title="Custom Leagues">
+    ```typescript
+    const SERVICE_LEVEL_ID = 3;
+    const DURATION_WEEKS = 4;
+    const SELECTED_LEAGUES = [500001]; // Your league IDs
+
+    const txSig = await program.methods
+      .subscribe(SERVICE_LEVEL_ID, DURATION_WEEKS)
+      .accounts({
+        user: provider.wallet.publicKey,
+        pricingMatrix: pricingMatrixPda,
+        tokenMint: txlTokenMint,
+        userTokenAccount,
+        tokenTreasuryVault,
+        tokenTreasuryPda,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    ```
+  </Tab>
+</Tabs>
+
+## Activate Your API Token
+
+After subscribing on-chain, activate your API access by signing the transaction and calling the activation endpoint.
+
+```typescript
+// Get guest JWT
+const authResponse = await axios.post(`${apiOrigin}/auth/guest/start`);
+const jwt = authResponse.data.token;
+
+// Sign the subscription transaction
+const messageString = `${txSig}:${SELECTED_LEAGUES.join(",")}:${jwt}`;
+const message = new TextEncoder().encode(messageString);
+
+// For SELECTED_LEAGUES = [], this signs `${txSig}::${jwt}`.
+async function signActivationMessage(message: Uint8Array): Promise<Uint8Array> {
+  if ("signMessage" in wallet && wallet.signMessage) {
+    return wallet.signMessage(message);
+  }
+
+  const localPayer = (provider.wallet as anchor.Wallet & {
+    payer?: anchor.web3.Keypair;
+  }).payer;
+
+  if (localPayer) {
+    return nacl.sign.detached(message, localPayer.secretKey);
+  }
+
+  throw new Error("Wallet must support signMessage, or run with a local Anchor payer.");
+}
+
+const signatureBytes = await signActivationMessage(message);
+const walletSignature = Buffer.from(signatureBytes).toString("base64");
+
+// Activate API access
+const activationResponse = await axios.post(
+  `${apiBaseUrl}/token/activate`,
+  {
+    txSig,
+    walletSignature,
+    leagues: SELECTED_LEAGUES,
+  },
+  { headers: { Authorization: `Bearer ${jwt}` } }
+);
+
+const apiToken = activationResponse.data.token || activationResponse.data;
+```
+
+The activation signature must be a base64-encoded detached wallet signature over the exact message string. For the standard free bundle, `SELECTED_LEAGUES = []`, so the message has two colons between `txSig` and `jwt`:
+
+```text
+${txSig}::${jwt}
+```
+
+The signing wallet must be the same wallet that submitted the on-chain `subscribe` transaction, and the `jwt` must come from the same network host used for activation.
+
+You're now ready to use the API. Send both activated credentials with data API requests:
+
+| Header | Value |
+|--------|-------|
+| `Authorization` | `Bearer ${jwt}` from `/auth/guest/start` |
+| `X-Api-Token` | `apiToken` returned by `/api/token/activate` |
+
+## Credential Lifecycle
+
+| Credential | Where it comes from | How it is used |
+|------------|---------------------|----------------|
+| Guest JWT | `POST /auth/guest/start` on the matching host | Sent as `Authorization: Bearer <jwt>` and included in the activation signature preimage |
+| API token | `POST /api/token/activate` after a confirmed `subscribe` transaction | Sent as `X-Api-Token` on data requests |
+
+If a data request returns `401`, renew the guest JWT from the same network host and retry with the same activated API token. If activation returns `403`, check the signed message, wallet, signature encoding, transaction network, and activation host.
+
+## Next Steps
+
+- View the complete [API Reference](/api-reference/authentication/start-a-new-guest-session) to explore all available endpoints
+- Check out [Subscription Tiers](/documentation/subscription-tiers) for pricing and plan options
+- Try the [World Cup Free Tier](/documentation/worldcup) for instant free access
+- Run the [Runnable Devnet Examples](/documentation/examples/devnet-examples) for end-to-end devnet activation, streaming, and validation
+- Use [Troubleshooting](/documentation/examples/troubleshooting) to diagnose activation, streaming, and validation errors

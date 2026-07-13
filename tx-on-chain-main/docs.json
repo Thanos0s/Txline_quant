@@ -1,0 +1,134 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "TxLINE Documentation",
+  "landingPage": "documentation/quickstart",
+  "colors": {
+    "primary": "#FF5723",
+    "light": "#FF5723",
+    "dark": "#FF5723"
+  },
+  "favicon": "https://txodds.github.io/tx-on-chain/assets/logo/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "documentation/quickstart",
+              "documentation/subscription-tiers",
+              "documentation/worldcup",
+              "faq-overview"
+            ]
+          },
+          {
+            "group": "Odds",
+            "pages": [
+              "documentation/odds/overview",
+              "documentation/odds/odds-coverage"
+            ]
+          },
+          {
+            "group": "Scores",
+            "pages": [
+              "documentation/scores/overview",
+              "documentation/scores/schedule",
+              "documentation/scores/soccer-feed",
+              "documentation/scores/football-feed",
+              "documentation/scores/basketball-feed"
+            ]
+          },
+          {
+            "group": "Solana Programs",
+            "pages": [
+              "documentation/programs/addresses",
+              "documentation/programs/mainnet",
+              "documentation/programs/devnet"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "documentation/examples/fetching-snapshots",
+              "documentation/examples/streaming-data",
+              "documentation/examples/onchain-validation",
+              "documentation/examples/devnet-examples",
+              "documentation/examples/troubleshooting"
+            ]
+          },
+          {
+            "group": "Legal",
+            "pages": [
+              "documentation/legal/terms-and-conditions",
+              "documentation/legal/hackathon-terms"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "openapi": "https://txline.txodds.com/docs/docs.yaml"
+      }
+    ]
+  },
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/documentation/quickstart"
+    },
+    {
+      "source": "/quickstart",
+      "destination": "/documentation/quickstart"
+    },
+    {
+      "source": "/worldcup",
+      "destination": "/documentation/worldcup"
+    },
+    {
+      "source": "/subscription-tiers",
+      "destination": "/documentation/subscription-tiers"
+    },
+    {
+      "source": "/scores/schedule",
+      "destination": "/documentation/scores/schedule"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "/docs/docs.yaml"
+    },
+    {
+      "source": "/api-reference/openapi.json",
+      "destination": "/docs/docs.yaml"
+    }
+  ],
+  "logo": {
+    "light": "https://txodds.github.io/tx-on-chain/assets/logo/light.svg",
+    "dark": "https://txodds.github.io/tx-on-chain/assets/logo/dark.svg"
+  },
+  "contextual": {
+    "options": [
+     "copy",
+     "view",
+     "chatgpt",
+     "claude",
+     "perplexity",
+     "mcp",
+     "cursor",
+     "vscode"
+   ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/txoddsofficial",
+      "github": "https://github.com/txodds"
+    }
+  },
+  "background": {
+    "decoration": "grid"
+  },
+  "appearance": {
+    "default": "system"
+  }
+}

@@ -1,0 +1,47 @@
+---
+title: "StablePrice Feed"
+description: "Leagues covered by the odds feed"
+---
+
+## Available Coverage
+
+StablePrice odds coverage currently includes:
+
+- **Soccer**: supported leagues are listed in the downloadable CSV below.
+- **NCAAB (College Basketball)**: competition ID `300043`.
+- **NCAAF (College Football)**: competition IDs `550001`, `10005930`, `500005`, and `10005302`.
+
+Available markets are returned by the odds API for each covered fixture. Do not assume that a market such as both-teams-to-score, cards, corners, bookings, or player props is available unless it appears in the odds response for that fixture and network.
+
+<Info>
+For each fixture, inspect the returned `SuperOddsType` and market parameters from `/api/odds/snapshot/{fixtureId}` or `/api/odds/updates/...`. The competition coverage list tells you which competitions can be covered; the odds response tells you which markets are actually available for a specific fixture.
+</Info>
+
+## Market Availability
+
+### Soccer
+
+<Card
+  title="Download Soccer Supported Leagues"
+  icon="file-csv"
+  href="https://txodds.github.io/tx-on-chain/assets/SoccerSupportedLeagues.csv"
+>
+  Complete list of all supported soccer leagues
+</Card>
+
+Soccer market availability can vary by fixture and feed state. Common core markets may include result, handicap, and totals-style markets when returned by the API, but integrations should branch from the actual odds payload instead of hard-coding an assumed market catalog.
+
+### NCAAB (College Basketball)
+
+| Competition ID | Coverage |
+|----------------|----------|
+| 300043 | All NCAA Basketball conferences |
+
+### NCAAF (College Football)
+
+| Competition ID | League Name          |
+|----------------|----------------------|
+| 550001         | NCAA Division I FCS  |
+| 10005930       | NCAA Extra Matches   |
+| 500005         | NCAA Division I FBS  |
+| 10005302       | NCAA Division I (W)  |

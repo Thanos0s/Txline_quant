@@ -1,0 +1,130 @@
+---
+title: "Fetching Snapshots"
+description: "Retrieve fixtures, odds, and scores data"
+---
+
+<Info>
+**API Endpoints**: Use `https://txline.txodds.com/api/` for mainnet or `https://txline-dev.txodds.com/api/` for devnet
+</Info>
+
+<Info>
+**Prerequisites**: Complete [Quickstart activation](/documentation/quickstart) or [World Cup Free Tier activation](/documentation/worldcup) first. The snippets assume `jwt` is the guest JWT from `/auth/guest/start` and `apiToken` is the value returned by `/api/token/activate`.
+</Info>
+
+## Fetch Fixtures Snapshot
+
+Get all fixtures for a specific competition or all competitions.
+
+<Note>
+`Participant1IsHome` is the feed's home/away designation for mapping `Participant1` and `Participant2`; it is not a venue guarantee. For neutral competitions such as the World Cup, `Participant1IsHome: true` means `Participant1` is listed as the home side for feed purposes, even if the match is not played in that team's country.
+</Note>
+
+<Info>
+Fixture payloads include `GameState` in a backward-compatible format. Current values are `1` for scheduled fixtures and `6` for cancelled fixtures.
+</Info>
+
+```typescript
+import axios from "axios";
+
+const httpClient = axios.create({
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${jwt}`,
+    "X-Api-Token": apiToken
+  },
+  baseURL: "https://txline.txodds.com",
+});
+
+// Get fixtures for specific competition
+const fixturesResponse = await httpClient.get("/api/fixtures/snapshot", {
+  params: {
+    competitionId: 500005, // NCAA Division I FBS
+  },
+});
+const fixtures = fixturesResponse.data;
+
+console.log(`Retrieved ${fixtures.length} fixtures`);
+fixtures.slice(0, 3).forEach((fixture, index) => {
+  const homeTeam = fixture.Participant1IsHome
+    ? fixture.Participant1
+    : fixture.Participant2;
+  const awayTeam = fixture.Participant1IsHome
+    ? fixture.Participant2
+    : fixture.Participant1;
+
+  console.log(`${index + 1}. ${homeTeam} vs ${awayTeam}`);
+  console.log(`   ID: ${fixture.FixtureId}, Start: ${new Date(fixture.StartTime).toISOString()}`);
+  console.log(`   GameState: ${fixture.GameState ?? fixture.gameState}`);
+});
+
+// Get all fixtures
+const allFixturesResponse = await httpClient.get("/api/fixtures/snapshot");
+const allFixtures = allFixturesResponse.data;
+
+console.log(`Retrieved ${allFixtures.length} total fixtures`);
+```
+
+## Fetch Odds Snapshot
+
+Get odds data for a specific fixture or time period.
+
+```typescript
+const fixtureId = 17271370;
+
+// Get odds for specific fixture
+const fixtureOddsResponse = await httpClient.get(
+  `/api/odds/snapshot/${fixtureId}`
+);
+const fixtureOdds = fixtureOddsResponse.data;
+
+console.log(`Retrieved ${fixtureOdds.length} odds entries`);
+
+// Get odds for time period
+const epochDay = 20085;
+const hourOfDay = 15;
+const interval = 0;
+
+const updatesResponse = await httpClient.get(
+  `/api/odds/updates/${epochDay}/${hourOfDay}/${interval}`
+);
+const updates = updatesResponse.data;
+
+console.log(`Retrieved ${updates.length} odds updates`);
+```
+
+## Fetch Scores Snapshot
+
+Get scores data for a specific fixture or time period.
+
+```typescript
+const fixtureId = 17271370;
+
+// Get scores snapshot for fixture
+const snapshotScoresResponse = await httpClient.get(
+  `/api/scores/snapshot/${fixtureId}`
+);
+const snapshotScores = snapshotScoresResponse.data;
+
+console.log(`Retrieved ${snapshotScores.length} snapshot scores entries`);
+
+// Get live scores updates
+const liveScoresResponse = await httpClient.get(
+  `/api/scores/updates/${fixtureId}`
+);
+const liveScores = liveScoresResponse.data;
+
+console.log(`Retrieved ${liveScores.length} live scores updates`);
+
+// Get scores for time period
+const epochDay = 20085;
+const hourOfDay = 15;
+const interval = 0;
+
+const historicalUpdatesResponse = await httpClient.get(
+  `/api/scores/updates/${epochDay}/${hourOfDay}/${interval}`
+);
+const historicalUpdates = historicalUpdatesResponse.data;
+
+console.log(`Retrieved ${historicalUpdates.length} historical scores updates`);
+```
